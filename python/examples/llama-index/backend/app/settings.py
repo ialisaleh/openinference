@@ -1,10 +1,68 @@
 import os
-from typing import Dict
+from typing import Any, Dict
 
+from guardrails import Guard
+from guardrails.hub import ArizeDatasetEmbeddings
+from llama_index.core.llms import (
+    CustomLLM,
+    CompletionResponse,
+    CompletionResponseGen,
+    LLMMetadata,
+)
+from llama_index.core.llms.callbacks import llm_completion_callback
 from llama_index.core.callbacks import CallbackManager, LlamaDebugHandler
 from llama_index.core.settings import Settings
 from llama_index.embeddings.openai import OpenAIEmbedding
 from llama_index.llms.openai import OpenAI
+import openai
+
+
+guard = Guard().use(ArizeDatasetEmbeddings, on="prompt", on_fail="exception")
+guard._disable_tracer = True
+
+
+def monkey_completion(prompt, **kwargs):
+    _, _, query_component_of_prompt = prompt.partition("Query: ")
+    return guard(
+      llm_api=openai.chat.completions.create,
+      prompt=prompt,
+      model="gpt-3.5-turbo",
+      max_tokens=1024,
+      temperature=0.5,
+      metadata={
+        "user_message": query_component_of_prompt,
+      }
+    )
+
+
+outerOpenAI = OpenAI()
+
+
+class GuardedLLM(CustomLLM):
+    context_window: int = 3900
+    num_output: int = 256
+    model_name: str = "custom"
+    dummy_response: str = "My response"
+    openai_llm: Any = None
+
+    @property
+    def metadata(self) -> LLMMetadata:
+        """Get LLM metadata."""
+        return outerOpenAI.metadata
+
+    @llm_completion_callback()
+    def complete(self, prompt: str, **kwargs: Any) -> CompletionResponse:
+        validated_response = monkey_completion(prompt, **kwargs)
+        return CompletionResponse(text=validated_response.raw_llm_output)
+
+    @llm_completion_callback()
+    def stream_complete(
+        self, prompt: str, **kwargs: Any
+    ) -> CompletionResponseGen:
+        response = ""
+        for token in self.dummy_response:
+            response += token
+            yield CompletionResponse(text=response, delta=token)
 
 
 def llm_config_from_env() -> Dict:
@@ -38,6 +96,7 @@ def init_settings():
     embedding_configs = embedding_config_from_env()
 
     Settings.llm = OpenAI(**llm_configs)
+    # Settings.llm = GuardedLLM()
     Settings.embed_model = OpenAIEmbedding(**embedding_configs)
     Settings.chunk_size = int(os.getenv("CHUNK_SIZE", "1024"))
     Settings.chunk_overlap = int(os.getenv("CHUNK_OVERLAP", "20"))
