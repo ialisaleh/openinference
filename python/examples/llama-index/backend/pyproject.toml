@@ -16,6 +16,9 @@ llama-index-agent-openai = "0.2.7"
 openinference-semantic-conventions = "*"
 openinference-instrumentation-llama-index = "^2.0.0"
 opentelemetry-exporter-otlp = "^1.25.0"
+openinference-instrumentation-guardrails = "^0.1.1"
+guardrails-ai = "^0.5.4"
+arize = {extras = ["datasets"], version = "^7.20.1"}
 
 [tool.poetry.dependencies.uvicorn]
 extras = [ "standard" ]

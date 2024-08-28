@@ -18,6 +18,9 @@ RUN apt update && apt install -y chromium chromium-driver
 COPY ./pyproject.toml ./poetry.lock* /app/
 RUN poetry install --no-root --no-cache --only main
 
+# Install ArizeDatasetEmbeddings from Guardrails Hub
+RUN poetry run guardrails hub install hub://arize-ai/dataset_embeddings_guardrails --quiet
+
 # ====================================
 FROM build as release
 

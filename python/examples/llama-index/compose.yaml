@@ -1,18 +1,23 @@
 services:
   phoenix:
-    image: arizephoenix/phoenix:version-3.21.0
+    image: arizephoenix/phoenix:latest
     ports:
-      - "6006:6006"
+      - "6006:6006"  # PHOENIX_PORT
+      - "4317:4317"  # PHOENIX_GRPC_PORT
   backend:
     build:
       context: ./backend
       dockerfile: Dockerfile
       args:
         OPENAI_API_KEY: ${OPENAI_API_KEY}
+        ARIZE_DEVELOPER_KEY: ${ARIZE_DEVELOPER_KEY}
+        ARIZE_SPACE_ID: ${ARIZE_SPACE_ID}
     ports:
       - "8000:8000"
     environment:
       - OPENAI_API_KEY=${OPENAI_API_KEY}
+      - ARIZE_DEVELOPER_KEY=${ARIZE_DEVELOPER_KEY}
+      - ARIZE_SPACE_ID=${ARIZE_SPACE_ID}
       - COLLECTOR_ENDPOINT=http://phoenix:6006/v1/traces
       - PROD_CORS_ORIGIN=http://localhost:3000
     healthcheck:

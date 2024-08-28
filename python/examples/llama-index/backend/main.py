@@ -9,6 +9,7 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import RedirectResponse
 from app.api.routers.chat import chat_router
+from app.api.routers.datasets import datasets_router
 from app.settings import init_settings
 from instrument import instrument
 
@@ -39,6 +40,7 @@ if environment == "dev":
 
 
 app.include_router(chat_router, prefix="/api/chat")
+app.include_router(datasets_router, prefix="/api/datasets")
 
 
 if __name__ == "__main__":

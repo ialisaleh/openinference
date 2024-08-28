@@ -10,7 +10,7 @@ from llama_index.llms.openai import OpenAI
 def llm_config_from_env() -> Dict:
     from llama_index.core.constants import DEFAULT_TEMPERATURE
 
-    model = os.getenv("MODEL", "gpt-4-turbo-preview")
+    model = os.getenv("MODEL", "gpt-4o")
     temperature = os.getenv("LLM_TEMPERATURE", DEFAULT_TEMPERATURE)
     max_tokens = os.getenv("LLM_MAX_TOKENS")
 

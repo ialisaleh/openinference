@@ -1,7 +1,11 @@
 from typing import Any, Dict, List, Optional, Tuple
 
 from fastapi import APIRouter, Depends, HTTPException, Request, status
-from fastapi.responses import StreamingResponse
+from fastapi.responses import StreamingResponse, Response
+from guardrails import Guard
+from guardrails.errors import ValidationError
+from guardrails.hub import ArizeDatasetEmbeddings
+from guardrails.hub.arize_ai.dataset_embeddings_guardrails.validator.main import DEFAULT_FEW_SHOT_TRAIN_PROMPTS
 from llama_index.core.chat_engine.types import (
     BaseChatEngine,
 )
@@ -9,13 +13,29 @@ from llama_index.core.llms import ChatMessage, MessageRole
 from llama_index.core.schema import NodeWithScore
 from openinference.semconv.trace import SpanAttributes
 from opentelemetry import trace
+import openai
 from pydantic import BaseModel
 
+from app.api.routers.utils import get_arize_datasets_client, ARIZE_SPACE_ID, ARIZE_DATASET_NAME
 from app.engine import get_chat_engine
 
 tracer = trace.get_tracer(__name__)
 
 chat_router = r = APIRouter()
+
+
+def get_arize_jailbreak_guard_with_dataset_examples():
+    try:
+        client = get_arize_datasets_client()
+        df = client.get_dataset(space_id=ARIZE_SPACE_ID, dataset_name=ARIZE_DATASET_NAME)
+        dataset_examples = df['jailbreak_prompt'].values.tolist()
+        few_shot_jailbreak_examples = DEFAULT_FEW_SHOT_TRAIN_PROMPTS + dataset_examples
+    except Exception:
+        few_shot_jailbreak_examples = DEFAULT_FEW_SHOT_TRAIN_PROMPTS
+
+    jailbreak_guard = Guard().use(ArizeDatasetEmbeddings, on="prompt", on_fail="exception", sources=few_shot_jailbreak_examples)
+    jailbreak_guard._disable_tracer = True
+    return jailbreak_guard
 
 
 class _Message(BaseModel):
@@ -103,6 +123,21 @@ async def chat(
     with trace.use_span(span, end_on_exit=False):
         last_message_content, messages = await parse_chat_data(data)
         span.set_attribute(SpanAttributes.INPUT_VALUE, last_message_content)
+
+        # Arize Jailbreak Guard
+        try:
+            jailbreak_guard = get_arize_jailbreak_guard_with_dataset_examples()
+            jailbreak_guard(
+                llm_api=openai.chat.completions.create,
+                prompt=last_message_content,
+                model="gpt-3.5-turbo",
+                max_tokens=1024,
+                temperature=0.5,
+            )
+        except ValidationError as e:
+            print(f"Jailbreak Validation Error: {e}")
+            return Response(content="Validation failed: Potential jailbreak attempt detected.", media_type="text/plain")
+
         response = await chat_engine.astream_chat(last_message_content, messages)
 
         async def event_generator():
