@@ -16,15 +16,21 @@ from opentelemetry import trace
 import openai
 from pydantic import BaseModel
 
-from app.api.routers.utils import get_arize_datasets_client, ARIZE_SPACE_ID, ARIZE_DATASET_NAME
+from app.api.routers.utils import MemoryStore, get_arize_datasets_client, ARIZE_SPACE_ID, ARIZE_DATASET_NAME
 from app.engine import get_chat_engine
 
 tracer = trace.get_tracer(__name__)
 
 chat_router = r = APIRouter()
 
+store = MemoryStore()
+jailbreak_guard = None
 
-def get_arize_jailbreak_guard_with_dataset_examples():
+
+def get_few_shot_jailbreak_examples():
+    """
+    Fetches and combines few-shot jailbreak examples from Arize datasets with default prompts.
+    """
     try:
         client = get_arize_datasets_client()
         df = client.get_dataset(space_id=ARIZE_SPACE_ID, dataset_name=ARIZE_DATASET_NAME)
@@ -32,10 +38,35 @@ def get_arize_jailbreak_guard_with_dataset_examples():
         few_shot_jailbreak_examples = DEFAULT_FEW_SHOT_TRAIN_PROMPTS + dataset_examples
     except Exception:
         few_shot_jailbreak_examples = DEFAULT_FEW_SHOT_TRAIN_PROMPTS
+    return few_shot_jailbreak_examples
+
+
+def get_arize_jailbreak_guard_with_dataset_examples(few_shot_jailbreak_examples: list):
+    """
+    Sets up and returns a Guard instance with Arize dataset embeddings for jailbreak detection.
+    """
+    store.clear()
+    store.add_items(few_shot_jailbreak_examples)
 
     jailbreak_guard = Guard().use(ArizeDatasetEmbeddings, on="prompt", on_fail="exception", sources=few_shot_jailbreak_examples)
     jailbreak_guard._disable_tracer = True
     return jailbreak_guard
+
+
+def initialize_or_update_jailbreak_guard(few_shot_jailbreak_examples):
+    """
+    Initialize or update the jailbreak guard with the provided few-shot examples.
+
+    If the jailbreak guard is not initialized, it is created using the examples.
+    If it is already initialized and new examples are provided, update the guard.
+    """
+    global store
+    global jailbreak_guard
+
+    if jailbreak_guard is None:
+        jailbreak_guard = get_arize_jailbreak_guard_with_dataset_examples(few_shot_jailbreak_examples)
+    elif not store.compare_with(few_shot_jailbreak_examples):
+        jailbreak_guard = get_arize_jailbreak_guard_with_dataset_examples(few_shot_jailbreak_examples)
 
 
 class _Message(BaseModel):
@@ -126,7 +157,9 @@ async def chat(
 
         # Arize Jailbreak Guard
         try:
-            jailbreak_guard = get_arize_jailbreak_guard_with_dataset_examples()
+            global jailbreak_guard
+            few_shot_jailbreak_examples = get_few_shot_jailbreak_examples()
+            initialize_or_update_jailbreak_guard(few_shot_jailbreak_examples)
             jailbreak_guard(
                 llm_api=openai.chat.completions.create,
                 prompt=last_message_content,
@@ -136,7 +169,10 @@ async def chat(
             )
         except ValidationError as e:
             print(f"Jailbreak Validation Error: {e}")
-            return Response(content="Validation failed: Potential jailbreak attempt detected.", media_type="text/plain")
+            validation_error = "Validation failed: Potential jailbreak attempt detected."
+            span.set_attribute(SpanAttributes.OUTPUT_VALUE, validation_error)
+            span.end()
+            return Response(content=validation_error, media_type="text/plain")
 
         response = await chat_engine.astream_chat(last_message_content, messages)
 

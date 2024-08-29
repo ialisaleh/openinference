@@ -18,6 +18,9 @@ class AddJailbreakPrompt(BaseModel):
 
 
 def get_dataset_id_by_name(client: ArizeDatasetsClient, dataset_name: str) -> Optional[str]:
+    """
+    Retrieve the dataset ID based on the dataset name.
+    """
     df = client.list_datasets(space_id=ARIZE_SPACE_ID)
     filtered_df = df.loc[df['dataset_name'] == dataset_name, 'dataset_id']
     if not filtered_df.empty:
@@ -29,6 +32,10 @@ def get_dataset_id_by_name(client: ArizeDatasetsClient, dataset_name: str) -> Op
 
 @r.post("/jailbreak_prompts")
 async def add_jailbreak_prompts(data: AddJailbreakPrompt):
+    """
+    Add a new jailbreak prompt to the dataset. If the dataset exists, update it with the new prompt;
+    otherwise, create a new dataset with the provided prompt.
+    """
     try:
         client = get_arize_datasets_client()
         dataset_id = get_dataset_id_by_name(client, ARIZE_DATASET_NAME)
@@ -48,6 +55,9 @@ async def add_jailbreak_prompts(data: AddJailbreakPrompt):
 
 @r.get("/jailbreak_prompts")
 async def get_jailbreak_prompts():
+    """
+    Retrieve all jailbreak prompts from the dataset and return them as a JSON response.
+    """
     try:
         client = get_arize_datasets_client()
         df = client.get_dataset(space_id=ARIZE_SPACE_ID, dataset_name=ARIZE_DATASET_NAME)
@@ -59,6 +69,10 @@ async def get_jailbreak_prompts():
 
 @r.delete("/jailbreak_prompts")
 async def delete_jailbreak_prompts():
+    """
+    Delete the dataset containing jailbreak prompts. If the dataset is found and successfully deleted,
+    return a confirmation. If not found, raise a 404 error.
+    """
     try:
         client = get_arize_datasets_client()
         dataset_id = get_dataset_id_by_name(client, ARIZE_DATASET_NAME)
