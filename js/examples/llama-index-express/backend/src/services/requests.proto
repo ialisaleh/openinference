@@ -1,0 +1,130 @@
+syntax = "proto3";
+
+package public;
+
+import "google/protobuf/timestamp.proto";
+
+// DoGetRequest Message
+message DoGetRequest {
+    oneof request {
+        GetDatasetRequest get_dataset = 1;
+    }
+}
+
+// GetDatasetRequest Message
+message GetDatasetRequest {
+    string space_id = 1;
+    string dataset_id = 2;
+    string dataset_version = 3;
+    oneof dataset_identifier {
+        string dataset_name = 4;
+    }
+}
+
+// DoPutRequest Message
+message DoPutRequest {
+    oneof request {
+        CreateDatasetRequest create_dataset = 1;
+        UpdateDatasetRequest update_dataset = 2;
+        CreateExperimentRequest create_experiment = 3;
+    }
+}
+
+// CreateDatasetRequest Message
+message CreateDatasetRequest {
+    string space_id = 1;
+    string dataset_name = 2;
+    DatasetType dataset_type = 3;
+}
+
+// CreateDatasetResponse Message
+message CreateDatasetResponse {
+    string dataset_id = 1;
+}
+
+// CreateExperimentRequest Message
+message CreateExperimentRequest {
+    string space_id = 1;
+    string dataset_id = 2;
+    string experiment_name = 3;
+}
+
+// CreateExperimentResponse Message
+message CreateExperimentResponse {
+    string experiment_id = 1;
+}
+
+// UpdateDatasetRequest Message
+message UpdateDatasetRequest {
+    string space_id = 1;
+    string dataset_id = 2;
+}
+
+// UpdateDatasetResponse Message
+message UpdateDatasetResponse {
+    string dataset_id = 1;
+}
+
+// DoActionRequest Message
+message DoActionRequest {
+    oneof request {
+        ListDatasetsRequest list_datasets = 1;
+        DeleteDatasetRequest delete_dataset = 2;
+        GetDatasetVersionsRequest get_dataset_versions = 3;
+    }
+}
+
+// ListDatasetsRequest Message
+message ListDatasetsRequest {
+    string space_id = 1;
+}
+
+// DeleteDatasetRequest Message
+message DeleteDatasetRequest {
+    string space_id = 1;
+    string dataset_id = 2;
+}
+
+// DeleteDatasetResponse Message
+message DeleteDatasetResponse {
+    bool success = 1;
+}
+
+// GetDatasetVersionsRequest Message
+message GetDatasetVersionsRequest {
+    string space_id = 1;
+    string dataset_id = 2;
+}
+
+// DatasetInfo Message
+message DatasetInfo {
+    string dataset_id = 1;
+    string dataset_name = 2;
+    DatasetType dataset_type = 3;
+    google.protobuf.Timestamp created_at = 4;
+    google.protobuf.Timestamp updated_at = 5;
+}
+
+// ListDatasetsResponse Message
+message ListDatasetsResponse {
+    repeated DatasetInfo datasets = 1;
+}
+
+// DatasetVersionInfo Message
+message DatasetVersionInfo {
+    string version_name = 1;
+    google.protobuf.Timestamp created_at = 2;
+    google.protobuf.Timestamp updated_at = 3;
+}
+
+// GetDatasetVersionsResponse Message
+message GetDatasetVersionsResponse {
+    repeated DatasetVersionInfo versions = 2;
+}
+
+// DatasetType Enum
+enum DatasetType {
+    UNKNOWN = 0;
+    GENERATIVE = 1;
+    INFERENCES = 2;
+}
